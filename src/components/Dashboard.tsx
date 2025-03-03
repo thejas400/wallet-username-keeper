@@ -1,10 +1,9 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { CredentialEntry, getCredentials } from '@/utils/storage';
 import { decryptData } from '@/utils/encryption';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Eye, EyeOff, Copy, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Eye, EyeOff, Copy, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface DashboardProps {
@@ -20,6 +19,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ walletAddress }) => {
   const [copiedFields, setCopiedFields] = useState<Record<string, string>>({});
   const [decryptionErrors, setDecryptionErrors] = useState<Record<string, boolean>>({});
   
+  useEffect(() => {
+    if (walletAddress) {
+      setCredentials(getCredentials(walletAddress));
+      setVisiblePasswords({});
+      setCopiedFields({});
+      setDecryptionErrors({});
+    }
+  }, [walletAddress]);
+  
   const togglePasswordVisibility = (id: string) => {
     setVisiblePasswords(prev => ({
       ...prev,
@@ -29,9 +37,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ walletAddress }) => {
   
   const getDecryptedPassword = (credential: CredentialEntry): string => {
     try {
+      if (!credential.password || !walletAddress) {
+        throw new Error('Missing data for decryption');
+      }
+      
       const decryptedPassword = decryptData(credential.password, walletAddress);
       
-      // Clear any previous error for this credential
       if (decryptionErrors[credential.id]) {
         setDecryptionErrors(prev => {
           const updated = { ...prev };
@@ -44,7 +55,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ walletAddress }) => {
     } catch (error) {
       console.error('Failed to decrypt password:', error);
       
-      // Mark this credential as having a decryption error
       if (!decryptionErrors[credential.id]) {
         setDecryptionErrors(prev => ({
           ...prev,
@@ -67,7 +77,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ walletAddress }) => {
         setCopiedFields({ ...copiedFields, [id]: field });
         toast.success(`${field} copied to clipboard`);
         
-        // Reset the copied status after 2 seconds
         setTimeout(() => {
           setCopiedFields(prev => {
             const updated = { ...prev };
@@ -79,6 +88,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ walletAddress }) => {
       .catch(() => {
         toast.error('Failed to copy to clipboard');
       });
+  };
+  
+  const refreshCredentials = () => {
+    const updatedCredentials = getCredentials(walletAddress);
+    setCredentials(updatedCredentials);
+    setVisiblePasswords({});
+    setCopiedFields({});
+    setDecryptionErrors({});
+    toast.info('Credentials refreshed');
   };
   
   const platformIcons: Record<string, { icon: string, bgColor: string }> = {
@@ -109,7 +127,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ walletAddress }) => {
   
   return (
     <div className="space-y-6 animate-blur-in">
-      <h2 className="text-xl font-medium text-center">Your Saved Credentials</h2>
+      <div className="flex justify-between items-center">
+        <h2 className="text-xl font-medium">Your Saved Credentials</h2>
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          onClick={refreshCredentials}
+          className="h-8 w-8 rounded-full"
+        >
+          <RefreshCw className="h-4 w-4" />
+        </Button>
+      </div>
       
       <div className="space-y-4">
         {credentials.map((credential) => {
@@ -201,7 +229,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ walletAddress }) => {
                                     size="icon"
                                     variant="ghost"
                                     className="h-8 w-8 rounded-full text-red-500"
-                                    onClick={() => toast.error('Unable to decrypt password. Try reconnecting your wallet.')}
+                                    onClick={() => toast.error('Unable to decrypt password. Try reconnecting your wallet and refreshing credentials.')}
                                   >
                                     <AlertCircle className="h-4 w-4" />
                                   </Button>
