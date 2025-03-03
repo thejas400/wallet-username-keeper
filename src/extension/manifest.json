@@ -1,0 +1,43 @@
+
+{
+  "manifest_version": 3,
+  "name": "Secure Credentials Filler",
+  "version": "1.0",
+  "description": "Automatically fills credentials for Instagram, Discord, and LinkedIn using wallet-encrypted credentials",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://*.instagram.com/*",
+    "https://*.discord.com/*",
+    "https://*.linkedin.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.instagram.com/*",
+        "https://*.discord.com/*",
+        "https://*.linkedin.com/*"
+      ],
+      "js": ["contentScript.js"]
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}
