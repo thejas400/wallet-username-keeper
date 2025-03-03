@@ -4,7 +4,7 @@ import { CredentialEntry, getCredentials } from '@/utils/storage';
 import { decryptData } from '@/utils/encryption';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Eye, EyeOff, Copy, CheckCircle2 } from 'lucide-react';
+import { Eye, EyeOff, Copy, CheckCircle2, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface DashboardProps {
@@ -18,6 +18,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ walletAddress }) => {
   
   const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
   const [copiedFields, setCopiedFields] = useState<Record<string, string>>({});
+  const [decryptionErrors, setDecryptionErrors] = useState<Record<string, boolean>>({});
   
   const togglePasswordVisibility = (id: string) => {
     setVisiblePasswords(prev => ({
@@ -28,14 +29,39 @@ export const Dashboard: React.FC<DashboardProps> = ({ walletAddress }) => {
   
   const getDecryptedPassword = (credential: CredentialEntry): string => {
     try {
-      return decryptData(credential.password, walletAddress);
+      const decryptedPassword = decryptData(credential.password, walletAddress);
+      
+      // Clear any previous error for this credential
+      if (decryptionErrors[credential.id]) {
+        setDecryptionErrors(prev => {
+          const updated = { ...prev };
+          delete updated[credential.id];
+          return updated;
+        });
+      }
+      
+      return decryptedPassword;
     } catch (error) {
       console.error('Failed to decrypt password:', error);
+      
+      // Mark this credential as having a decryption error
+      if (!decryptionErrors[credential.id]) {
+        setDecryptionErrors(prev => ({
+          ...prev,
+          [credential.id]: true
+        }));
+      }
+      
       return '*** DECRYPTION ERROR ***';
     }
   };
   
   const copyToClipboard = (text: string, id: string, field: string) => {
+    if (text === '*** DECRYPTION ERROR ***') {
+      toast.error('Cannot copy decryption error');
+      return;
+    }
+    
     navigator.clipboard.writeText(text)
       .then(() => {
         setCopiedFields({ ...copiedFields, [id]: field });
@@ -89,6 +115,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ walletAddress }) => {
         {credentials.map((credential) => {
           const isPasswordVisible = visiblePasswords[credential.id] || false;
           const decryptedPassword = isPasswordVisible ? getDecryptedPassword(credential) : '••••••••';
+          const hasDecryptionError = decryptedPassword === '*** DECRYPTION ERROR ***';
           const platformInfo = platformIcons[credential.platform] || { icon: '', bgColor: 'bg-gray-500' };
           
           return (
@@ -137,7 +164,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ walletAddress }) => {
                           <div className="relative group">
                             <div className="text-xs text-muted-foreground mb-1">Password</div>
                             <div className="flex items-center space-x-2">
-                              <div className="font-mono text-sm bg-secondary/50 py-1 px-3 rounded-md flex-grow">
+                              <div className={`font-mono text-sm bg-secondary/50 py-1 px-3 rounded-md flex-grow ${hasDecryptionError ? 'text-red-500' : ''}`}>
                                 {decryptedPassword}
                               </div>
                               <div className="flex space-x-1">
@@ -154,7 +181,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ walletAddress }) => {
                                   )}
                                 </Button>
                                 
-                                {isPasswordVisible && (
+                                {isPasswordVisible && !hasDecryptionError && (
                                   <Button
                                     size="icon"
                                     variant="ghost"
@@ -166,6 +193,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ walletAddress }) => {
                                     ) : (
                                       <Copy className="h-4 w-4" />
                                     )}
+                                  </Button>
+                                )}
+                                
+                                {hasDecryptionError && (
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    className="h-8 w-8 rounded-full text-red-500"
+                                    onClick={() => toast.error('Unable to decrypt password. Try reconnecting your wallet.')}
+                                  >
+                                    <AlertCircle className="h-4 w-4" />
                                   </Button>
                                 )}
                               </div>

@@ -2,11 +2,19 @@
 import CryptoJS from 'crypto-js';
 
 /**
+ * Standardizes the encryption key to ensure consistent encryption/decryption
+ */
+const standardizeKey = (walletAddress: string): string => {
+  // Create a consistent key by hashing the wallet address
+  return CryptoJS.SHA256(walletAddress.toLowerCase()).toString();
+};
+
+/**
  * Encrypts data using AES with the wallet address as key
  */
 export const encryptData = (data: string, walletAddress: string): string => {
-  // Use the wallet address as the encryption key (hashed for security)
-  const key = CryptoJS.SHA256(walletAddress).toString();
+  // Use the standardized wallet address as the encryption key
+  const key = standardizeKey(walletAddress);
   
   // Encrypt the data
   const encryptedData = CryptoJS.AES.encrypt(data, key).toString();
@@ -19,8 +27,8 @@ export const encryptData = (data: string, walletAddress: string): string => {
  */
 export const decryptData = (encryptedData: string, walletAddress: string): string => {
   try {
-    // Use the wallet address as the encryption key (hashed for security)
-    const key = CryptoJS.SHA256(walletAddress).toString();
+    // Use the standardized wallet address as the encryption key
+    const key = standardizeKey(walletAddress);
     
     // Decrypt the data
     const decryptedBytes = CryptoJS.AES.decrypt(encryptedData, key);
