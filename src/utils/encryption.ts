@@ -6,12 +6,21 @@ import CryptoJS from 'crypto-js';
  * Uses consistent hashing to create a reliable key from wallet address
  */
 const standardizeKey = (walletAddress: string): string => {
+  if (!walletAddress) {
+    throw new Error('Wallet address must be provided for key generation');
+  }
+  
   // Make sure we're using a lowercase wallet address to avoid case sensitivity issues
   const normalizedAddress = walletAddress.toLowerCase().trim();
   
-  // Create a consistent key by double hashing the wallet address
-  // This ensures that the key is always the same length and format
-  return CryptoJS.SHA256(normalizedAddress).toString();
+  // Use SHA-256 to hash the wallet address for a more reliable key
+  const hashedKey = CryptoJS.SHA256(normalizedAddress).toString();
+  
+  // Log key generation for debugging
+  console.log('Generated encryption key from wallet:', 
+    `${normalizedAddress.substring(0, 6)}...${normalizedAddress.substring(normalizedAddress.length - 4)}`);
+  
+  return hashedKey;
 };
 
 /**
@@ -26,8 +35,14 @@ export const encryptData = (data: string, walletAddress: string): string => {
     // Use the standardized wallet address as the encryption key
     const key = standardizeKey(walletAddress);
     
-    // Encrypt the data with AES
+    // Encrypt the data with AES using the key
     const encryptedData = CryptoJS.AES.encrypt(data, key).toString();
+    
+    // Ensure the data can be decrypted as a verification step
+    const verificationTest = testDecryption(encryptedData, walletAddress);
+    if (!verificationTest) {
+      throw new Error('Encryption verification failed');
+    }
     
     return encryptedData;
   } catch (error) {
@@ -53,6 +68,8 @@ export const decryptData = (encryptedData: string, walletAddress: string): strin
     const decryptedText = bytes.toString(CryptoJS.enc.Utf8);
     
     if (!decryptedText) {
+      console.error('Decryption produced empty result for wallet:', 
+        `${walletAddress.substring(0, 6)}...${walletAddress.substring(walletAddress.length - 4)}`);
       throw new Error('Decryption failed');
     }
     

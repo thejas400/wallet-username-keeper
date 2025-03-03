@@ -7,6 +7,10 @@
  * Uses consistent hashing to create a reliable key from wallet address
  */
 function standardizeKey(walletAddress) {
+  if (!walletAddress) {
+    throw new Error('Wallet address must be provided for key generation');
+  }
+  
   // Ensure we're using a lowercase wallet address to avoid case sensitivity issues
   const normalizedAddress = walletAddress.toLowerCase().trim();
   
@@ -83,13 +87,86 @@ function decryptData(encryptedData, walletAddress) {
 }
 
 /**
- * Checks if data can be properly decrypted with the provided wallet address
+ * Gets all credentials for a wallet address from localStorage
  */
-function testDecryption(encryptedData, walletAddress) {
+function getCredentials(walletAddress) {
   try {
-    const decryptedData = decryptData(encryptedData, walletAddress);
-    return decryptedData !== null && decryptedData !== undefined && decryptedData !== '';
+    if (!walletAddress) {
+      console.error('No wallet address provided for credential retrieval');
+      return [];
+    }
+    
+    // Normalize wallet address for consistent storage key
+    const normalizedWalletAddress = walletAddress.toLowerCase().trim();
+    const encryptedData = localStorage.getItem(`credentials_${normalizedWalletAddress}`);
+    
+    if (!encryptedData) {
+      console.log('No credentials found for wallet');
+      return [];
+    }
+    
+    try {
+      // For the extension, we're using a different decryption method
+      // Here we just decode the JSON directly since we're not encrypting in the extension
+      return JSON.parse(encryptedData);
+    } catch (error) {
+      console.error('Failed to parse credentials:', error);
+      return [];
+    }
   } catch (error) {
-    return false;
+    console.error('Error retrieving credentials:', error);
+    return [];
   }
 }
+
+/**
+ * Checks if a credential exists for a platform
+ */
+function hasCredentialForPlatform(walletAddress, platform) {
+  if (!walletAddress) return false;
+  
+  // First try to get credentials using extension's simplified approach
+  try {
+    const normalizedWalletAddress = walletAddress.toLowerCase().trim();
+    const storedWalletAddress = localStorage.getItem('ext_wallet_address');
+    
+    if (storedWalletAddress === normalizedWalletAddress) {
+      const credentials = getCredentials(normalizedWalletAddress);
+      return credentials.some((cred) => cred.platform === platform);
+    }
+  } catch (err) {
+    console.error('Extension credential check failed:', err);
+  }
+  
+  // Fallback: check if the platform specific key exists
+  return localStorage.getItem(`credential_${walletAddress}_${platform}`) !== null;
+}
+
+/**
+ * Updates extension status badges for platforms
+ */
+function updatePlatformStatus(walletAddress) {
+  if (!walletAddress) return;
+  
+  const platforms = ['instagram', 'discord', 'linkedin'];
+  
+  platforms.forEach(platform => {
+    const hasCredential = hasCredentialForPlatform(walletAddress, platform);
+    const statusElement = document.getElementById(`${platform}-status`);
+    
+    if (statusElement) {
+      statusElement.textContent = hasCredential ? 'Registered' : 'Not Registered';
+      statusElement.className = `platform-status ${hasCredential ? 'status-registered' : 'status-not-registered'}`;
+    }
+  });
+}
+
+// Export functions for use in other extension scripts
+window.extensionUtils = {
+  standardizeKey,
+  encryptData,
+  decryptData,
+  getCredentials,
+  hasCredentialForPlatform,
+  updatePlatformStatus
+};

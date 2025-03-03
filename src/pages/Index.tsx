@@ -5,7 +5,7 @@ import { WalletConnect } from '@/components/WalletConnect';
 import { PlatformSelector } from '@/components/PlatformSelector';
 import { CredentialForm } from '@/components/CredentialForm';
 import { Dashboard } from '@/components/Dashboard';
-import { getCredentials } from '@/utils/storage';
+import { getCredentials, syncCredentialsWithExtension } from '@/utils/storage';
 import { Separator } from '@/components/ui/separator';
 
 type Platform = 'instagram' | 'discord' | 'linkedin';
@@ -15,13 +15,16 @@ const MainApp = () => {
   const [selectedPlatform, setSelectedPlatform] = useState<Platform | null>(null);
   const [hasCredentials, setHasCredentials] = useState(false);
   
-  // Reset selected platform when wallet changes
+  // Reset selected platform when wallet changes and check for credentials
   useEffect(() => {
     setSelectedPlatform(null);
     
     if (address) {
       const credentials = getCredentials(address);
       setHasCredentials(credentials.length > 0);
+      
+      // Sync credentials with extension when wallet is connected
+      syncCredentialsWithExtension(address);
     } else {
       setHasCredentials(false);
     }
@@ -30,6 +33,11 @@ const MainApp = () => {
   const handleCredentialSaved = () => {
     setSelectedPlatform(null);
     setHasCredentials(true);
+    
+    // Sync credentials with extension after saving
+    if (address) {
+      syncCredentialsWithExtension(address);
+    }
   };
   
   return (

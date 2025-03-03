@@ -3,7 +3,7 @@ import { CredentialEntry, getCredentials } from '@/utils/storage';
 import { decryptData } from '@/utils/encryption';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Eye, EyeOff, Copy, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
+import { Eye, EyeOff, Copy, CheckCircle2, AlertCircle, RefreshCw, Info } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface DashboardProps {
@@ -21,10 +21,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ walletAddress }) => {
   
   useEffect(() => {
     if (walletAddress) {
-      setCredentials(getCredentials(walletAddress));
-      setVisiblePasswords({});
-      setCopiedFields({});
-      setDecryptionErrors({});
+      refreshCredentials();
     }
   }, [walletAddress]);
   
@@ -41,27 +38,41 @@ export const Dashboard: React.FC<DashboardProps> = ({ walletAddress }) => {
         throw new Error('Missing data for decryption');
       }
       
-      const decryptedPassword = decryptData(credential.password, walletAddress);
-      
-      if (decryptionErrors[credential.id]) {
-        setDecryptionErrors(prev => {
-          const updated = { ...prev };
-          delete updated[credential.id];
-          return updated;
-        });
+      try {
+        const decryptedPassword = decryptData(credential.password, walletAddress);
+        
+        if (decryptionErrors[credential.id]) {
+          setDecryptionErrors(prev => {
+            const updated = { ...prev };
+            delete updated[credential.id];
+            return updated;
+          });
+        }
+        
+        return decryptedPassword;
+      } catch (error) {
+        console.error('Failed to decrypt password:', error);
+        
+        if (typeof credential.password === 'string' && 
+            !credential.password.startsWith('U2F') && 
+            !credential.password.includes('+') && 
+            !credential.password.includes('/')) {
+          
+          console.log('Password appears to be plaintext, not encrypted');
+          return credential.password;
+        }
+        
+        if (!decryptionErrors[credential.id]) {
+          setDecryptionErrors(prev => ({
+            ...prev,
+            [credential.id]: true
+          }));
+        }
+        
+        return '*** DECRYPTION ERROR ***';
       }
-      
-      return decryptedPassword;
     } catch (error) {
-      console.error('Failed to decrypt password:', error);
-      
-      if (!decryptionErrors[credential.id]) {
-        setDecryptionErrors(prev => ({
-          ...prev,
-          [credential.id]: true
-        }));
-      }
-      
+      console.error('Password processing error:', error);
       return '*** DECRYPTION ERROR ***';
     }
   };
@@ -91,12 +102,34 @@ export const Dashboard: React.FC<DashboardProps> = ({ walletAddress }) => {
   };
   
   const refreshCredentials = () => {
+    if (!walletAddress) return;
+    
     const updatedCredentials = getCredentials(walletAddress);
     setCredentials(updatedCredentials);
     setVisiblePasswords({});
     setCopiedFields({});
     setDecryptionErrors({});
-    toast.info('Credentials refreshed');
+    
+    console.log(`Refreshed ${updatedCredentials.length} credentials for wallet:`, 
+      updatedCredentials.map(c => ({ 
+        platform: c.platform, 
+        id: c.id,
+        hasPassword: !!c.password
+      }))
+    );
+    
+    if (updatedCredentials.length > 0) {
+      toast.info('Credentials refreshed');
+    } else {
+      toast.info('No credentials found');
+    }
+  };
+  
+  const showDecryptionErrorInfo = () => {
+    toast.info(
+      'Decryption errors can occur if your wallet address has changed or if credentials were saved with a different address. Try reconnecting your wallet.',
+      { duration: 5000 }
+    );
   };
   
   const platformIcons: Record<string, { icon: string, bgColor: string }> = {
@@ -129,14 +162,26 @@ export const Dashboard: React.FC<DashboardProps> = ({ walletAddress }) => {
     <div className="space-y-6 animate-blur-in">
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-medium">Your Saved Credentials</h2>
-        <Button 
-          variant="ghost" 
-          size="sm" 
-          onClick={refreshCredentials}
-          className="h-8 w-8 rounded-full"
-        >
-          <RefreshCw className="h-4 w-4" />
-        </Button>
+        <div className="flex space-x-2">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={showDecryptionErrorInfo}
+            className="h-8 w-8 rounded-full"
+            title="Decryption Error Info"
+          >
+            <Info className="h-4 w-4" />
+          </Button>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={refreshCredentials}
+            className="h-8 w-8 rounded-full"
+            title="Refresh Credentials"
+          >
+            <RefreshCw className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
       
       <div className="space-y-4">

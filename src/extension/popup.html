@@ -118,6 +118,25 @@
       color: #64748b;
       text-align: center;
     }
+    
+    .refresh-btn {
+      padding: 4px 8px;
+      background-color: #f1f5f9;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      margin-top: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .refresh-btn svg {
+      width: 12px;
+      height: 12px;
+      margin-right: 4px;
+    }
   </style>
 </head>
 <body>
@@ -149,14 +168,151 @@
           <span id="linkedin-status" class="platform-status status-not-registered">Not Registered</span>
         </div>
       </div>
+      <button id="refresh-platforms-btn" class="refresh-btn">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        </svg>
+        Refresh
+      </button>
     </div>
   </div>
   
   <div class="footer">
     Powered by Secure Credentials Vault
+    <div id="status-message" style="margin-top: 8px; font-style: italic;"></div>
   </div>
   
   <script src="utils/encryption.js"></script>
-  <script src="popup.js"></script>
+  <script>
+    // Simple wallet connection simulation for demonstration
+    const connectWalletBtn = document.getElementById('connect-wallet-btn');
+    const walletStatus = document.getElementById('wallet-status');
+    const refreshPlatformsBtn = document.getElementById('refresh-platforms-btn');
+    const statusMessage = document.getElementById('status-message');
+    
+    // Check if wallet is already connected
+    const getConnectedWallet = () => {
+      return localStorage.getItem('ext_wallet_address');
+    };
+    
+    // Display wallet status
+    const updateWalletUI = (address) => {
+      if (address) {
+        walletStatus.innerHTML = `
+          <div class="value">${address.substring(0, 6)}...${address.substring(address.length - 4)}</div>
+          <button id="disconnect-wallet-btn" class="disconnect-btn">Disconnect</button>
+        `;
+        
+        // Add disconnect handler
+        document.getElementById('disconnect-wallet-btn').addEventListener('click', () => {
+          localStorage.removeItem('ext_wallet_address');
+          updateWalletUI(null);
+          updatePlatformStatuses(null);
+          statusMessage.textContent = 'Wallet disconnected';
+        });
+      } else {
+        walletStatus.innerHTML = `
+          <button id="connect-wallet-btn" class="connect-btn">Connect Wallet</button>
+        `;
+        
+        // Add connect handler
+        document.getElementById('connect-wallet-btn').addEventListener('click', connectWallet);
+      }
+    };
+    
+    // Prompt user to enter wallet address
+    const connectWallet = () => {
+      const walletAddress = prompt('Enter your wallet address:');
+      
+      if (walletAddress && walletAddress.trim()) {
+        const normalizedWalletAddress = walletAddress.trim().toLowerCase();
+        localStorage.setItem('ext_wallet_address', normalizedWalletAddress);
+        updateWalletUI(normalizedWalletAddress);
+        updatePlatformStatuses(normalizedWalletAddress);
+        statusMessage.textContent = 'Wallet connected successfully';
+      }
+    };
+    
+    // Update platform registration status
+    const updatePlatformStatuses = (walletAddress) => {
+      if (!walletAddress) {
+        // Reset all platforms to not registered
+        document.querySelectorAll('.platform-status').forEach(status => {
+          status.textContent = 'Not Registered';
+          status.className = 'platform-status status-not-registered';
+        });
+        return;
+      }
+      
+      const platforms = ['instagram', 'discord', 'linkedin'];
+      let registeredCount = 0;
+      
+      // Check credentials in localStorage directly
+      try {
+        const encryptedData = localStorage.getItem(`credentials_${walletAddress}`);
+        
+        if (encryptedData) {
+          try {
+            // Try to parse it directly first
+            const data = JSON.parse(encryptedData);
+            
+            if (Array.isArray(data)) {
+              const registeredPlatforms = data.map(cred => cred.platform);
+              
+              platforms.forEach(platform => {
+                const isRegistered = registeredPlatforms.includes(platform);
+                const statusElement = document.getElementById(`${platform}-status`);
+                
+                if (statusElement) {
+                  statusElement.textContent = isRegistered ? 'Registered' : 'Not Registered';
+                  statusElement.className = `platform-status ${isRegistered ? 'status-registered' : 'status-not-registered'}`;
+                  if (isRegistered) registeredCount++;
+                }
+              });
+              
+              statusMessage.textContent = `Found ${registeredCount} registered platform(s)`;
+              return;
+            }
+          } catch (e) {
+            console.error('Error parsing credentials:', e);
+          }
+        }
+        
+        // Fallback: check for platform-specific keys
+        platforms.forEach(platform => {
+          const hasCredential = localStorage.getItem(`credential_${walletAddress}_${platform}`) !== null;
+          const statusElement = document.getElementById(`${platform}-status`);
+          
+          if (statusElement) {
+            statusElement.textContent = hasCredential ? 'Registered' : 'Not Registered';
+            statusElement.className = `platform-status ${hasCredential ? 'status-registered' : 'status-not-registered'}`;
+            if (hasCredential) registeredCount++;
+          }
+        });
+        
+        statusMessage.textContent = registeredCount > 0 
+          ? `Found ${registeredCount} registered platform(s)`
+          : 'No registered platforms found';
+          
+      } catch (error) {
+        console.error('Error checking platform status:', error);
+        statusMessage.textContent = 'Error checking platform status';
+      }
+    };
+    
+    // Initialize extension
+    document.addEventListener('DOMContentLoaded', () => {
+      const connectedWallet = getConnectedWallet();
+      updateWalletUI(connectedWallet);
+      updatePlatformStatuses(connectedWallet);
+      
+      // Add refresh handler
+      refreshPlatformsBtn.addEventListener('click', () => {
+        const wallet = getConnectedWallet();
+        updatePlatformStatuses(wallet);
+        statusMessage.textContent = 'Refreshed platform status';
+      });
+    });
+  </script>
 </body>
 </html>
